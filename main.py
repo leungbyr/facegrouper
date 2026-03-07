@@ -33,8 +33,18 @@ def find_eps(encodings):
     optimal_eps = kneedle.knee_y
     return optimal_eps
 
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"}
+
+
 def get_encodings(input_folder_path: str):
-    image_files = [os.path.join(input_folder_path, f) for f in os.listdir(input_folder_path)]
+    all_entries = [
+        os.path.join(input_folder_path, f)
+        for f in os.listdir(input_folder_path)
+    ]
+    image_files = [
+        p for p in all_entries
+        if os.path.isfile(p) and os.path.splitext(p)[1].lower() in IMAGE_EXTENSIONS
+    ]
     total_images = len(image_files)
     logger.info(
         "Found %d images in %s, getting encodings...",
@@ -61,20 +71,25 @@ def get_encodings(input_folder_path: str):
     return images_with_encodings
 
 def get_clusters(images_with_encodings: list):
-    dbscan = DBSCAN(eps=0.5, min_samples=3, metric="euclidean")
+    logger.info("Finding optimal eps...")
+    eps = find_eps([image_with_encoding["encoding"] for image_with_encoding in images_with_encodings])
+    logger.info(f"Optimal eps: {eps}")
+    dbscan = DBSCAN(eps=eps, min_samples=3, metric="euclidean")
     dbscan.fit([image_with_encoding["encoding"] for image_with_encoding in images_with_encodings])
     clusters = defaultdict(list)
     for i, label_id in enumerate(dbscan.labels_):
         clusters[label_id].append(images_with_encodings[i])
-    return clusters
+    
+    score = silhouette_score([image_with_encoding["encoding"] for image_with_encoding in images_with_encodings], dbscan.labels_)
+    return clusters, score
 
 if __name__ == "__main__":
     input_folder = "input_folder"
     logger.info(f"Getting encodings for images in {input_folder}...")
     images_with_encodings = get_encodings(input_folder)
     logger.info("Getting clusters...")
-    clusters = get_clusters(images_with_encodings=images_with_encodings)
-    logger.info(f"Found {len(clusters)} clusters")
+    clusters, score = get_clusters(images_with_encodings=images_with_encodings)
+    logger.info(f"Found {len(clusters)} clusters with silhouette score: {score}")
 
     logger.info("Copying images in each cluster to folders...");
     output_root = "output_clusters"
@@ -90,6 +105,3 @@ if __name__ == "__main__":
             shutil.copy2(source_image, destination_image)
     logger.info("Complete")
 
-
-#score = silhouette_score(encodings_only, clt.labels_)  # might be wrong
-#print("silhouette score: ", score)
