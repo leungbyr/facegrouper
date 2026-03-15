@@ -9,6 +9,8 @@ from sklearn.metrics import silhouette_score
 from collections import defaultdict
 import logging
 
+from constants import IMAGE_EXTENSIONS
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
